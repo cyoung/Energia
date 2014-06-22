@@ -29,6 +29,8 @@
   Boston, MA  02111-1307  USA
 */
 
+#define FASTADC 1 // FastADC hacks.
+
 #include "wiring_private.h"
 #include "pins_energia.h"
 
@@ -346,7 +348,11 @@ uint16_t analogRead(uint8_t pin)
 #endif
 #if defined(__MSP430_HAS_ADC12_PLUS__)
     ADC12CTL0 &= ~ADC12ENC;                 // disable ADC
+#ifdef FASTADC
+    ADC12CTL1 = ADC12SSEL_0;                // ??
+#else
     ADC12CTL1 = ADC12SSEL_0 | ADC12DIV_4;   // ADC12OSC as ADC12CLK (~5MHz) / 5
+#endif
     while(REFCTL0 & REFGENBUSY);            // If ref generator busy, WAIT
     if (pin == TEMPSENSOR) {// if Temp Sensor 
         REFCTL0 = (INTERNAL1V5 & REF_MASK);                  // Set reference to internal 1.5V
@@ -355,7 +361,11 @@ uint16_t analogRead(uint8_t pin)
         REFCTL0 = (analog_reference & REF_MASK);                  // Set reference using masking off the SREF bits. See Energia.h.
         ADC12MCTL0 = channel | ((analog_reference >> 4) & REFV_MASK); // set channel and reference 
     }
+#ifdef FASTADC
+    ADC12CTL0 = ADC12ON | ADC12SHT0_2;      // ??
+#else
     ADC12CTL0 = ADC12ON | ADC12SHT0_4;      // turn ADC ON; sample + hold @ 64 × ADC10CLKs
+#endif
     ADC12CTL1 |= ADC12SHP;                  // ADCCLK = MODOSC; sampling timer
     ADC12CTL2 |= ADC12RES1;                 // 12-bit resolution
     ADC12IFG = 0;                           // Clear Flags
@@ -366,8 +376,10 @@ uint16_t analogRead(uint8_t pin)
         __bis_SR_register(CPUOFF + GIE);    // LPM0 with interrupts enabled
     }
     /* POWER: Turn ADC and reference voltage off to conserve power */
+#ifndef FASTADC
     ADC12CTL0 &= ~(ADC12ON);
     REFCTL0 &= ~REFON;
+#endif
 #endif
 #if defined(__MSP430_HAS_ADC12_B__)
     ADC12CTL0 &= ~ADC12ENC;                 // disable ADC
